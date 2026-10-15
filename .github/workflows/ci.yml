@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.compiler }}, ${{ matrix.configuration }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc-14, clang-18]
+        configuration: [debug, release]
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v7
+
+      - name: Build libraries
+        run: |
+          set -euo pipefail
+          ${{ matrix.compiler }} --version
+          make --no-print-directory -j2 all \
+            CC=${{ matrix.compiler }} \
+            BUILD=${{ matrix.configuration }} \
+            WERROR=1
+
+      - name: Verify packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          metadata_files=(*/library.mk)
+          ((${#metadata_files[@]} > 0))
+          for metadata in "${metadata_files[@]}"; do
+            library="${metadata%%/*}"
+            archive="dist/${{ matrix.configuration }}/${library}/lib/lib${library}.a"
+            if [[ ! -s "$archive" ]]; then
+              echo "Missing or empty archive: $archive" >&2
+              exit 1
+            fi
+            ar t "$archive" > /dev/null
+            test -d "dist/${{ matrix.configuration }}/${library}/include"
+          done
+
+  # Proxy for matrix-generated status checks
+  quality-gate:
+    name: quality-gate
+    runs-on: ubuntu-24.04
+    needs: [build]
+    if: always()
+    steps:
+      - name: Require every build to succeed
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: test "$BUILD_RESULT" = success
