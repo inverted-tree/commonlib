@@ -11,6 +11,9 @@
 *.swp
 *.swo
 *~
+/compile_commands.json
+/.cache
+
 
 # OS-generated files
 .DS_Store
