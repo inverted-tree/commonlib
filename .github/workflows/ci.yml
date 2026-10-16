@@ -27,10 +27,18 @@ jobs:
         run: |
           set -euo pipefail
           ${{ matrix.compiler }} --version
-          make --no-print-directory -j2 all \
-            CC=${{ matrix.compiler }} \
+          make --no-print-directory -j2 all   \
+            CC=${{ matrix.compiler }}         \
             BUILD=${{ matrix.configuration }} \
             WERROR=1
+
+      - name: Run debug unit tests
+        if: matrix.configuration == 'debug'
+        run: |
+          set -euo pipefail
+          make --no-print-directory -j2 test \
+            CC=${{ matrix.compiler }}        \
+            BUILD=debug WERROR=1
 
       - name: Verify packaging
         shell: bash
