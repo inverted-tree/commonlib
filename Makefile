@@ -50,10 +50,15 @@ transitive = $(sort $(call closure,$(1),))
 sources = $(wildcard $(1)/src/*.c)
 objects = $(patsubst $(1)/src/%.c,build/$(BUILD)/obj/$(1)_%.o,$(call sources,$(1)))
 archive_objects = $(sort $(foreach lib,$(call transitive,$(1)),$(call objects,$(lib))))
-include_flags = $(addprefix -I,$(addsuffix /include,$(call transitive,$(1))))
+include_flags   = $(addprefix -I,$(addsuffix /include,$(call transitive,$(1))))
 
-.PHONY: all clean
+# Each library can provide one or more tests under <library>/tests/test_*.c
+test_sources  = $(wildcard $(1)/tests/test_*.c)
+test_binaries = $(patsubst $(1)/tests/%.c,build/$(BUILD)/tests/$(1)/%,$(call test_sources,$(1)))
+
+.PHONY: all test clean
 all: $(LIBRARIES)
+test: $(addprefix test-,$(LIBRARIES))
 
 define library_rules
 # The public library target is the complete distributable package.
@@ -73,6 +78,21 @@ build/$(BUILD)/lib$(1).a: $(call archive_objects,$(1)) $(1)/library.mk
 	@mkdir -p $$(@D)
 	rm -f $$@
 	$(AR) rcs $$@ $$(filter %.o,$$^)
+
+# Tests link against the distributed archive and headers, not source files.
+# Each test binary depends on the package target to ensure it is up to date.
+build/$(BUILD)/tests/$(1)/%: $(1)/tests/%.c $(1) tests/test.h
+	@mkdir -p $$(@D)
+	$(CC) $(CPPFLAGS) $(MODE_CPPFLAGS) -Idist/$(BUILD)/$(1)/include -Itests -std=$(CSTD) $(CFLAGS) $(MODE_CFLAGS) $(STRICT_CFLAGS) $$< dist/$(BUILD)/$(1)/lib/lib$(1).a $(LDFLAGS) $(LDLIBS) -o $$@
+
+.PHONY: test-$(1)
+test-$(1): $(call test_binaries,$(1))
+	@test -n "$(call test_sources,$(1))" || { echo "Missing tests for library $(1)" >&2; exit 1; }
+	@set -e; for test_bin in $(call test_binaries,$(1)); do \
+		echo "Running $$$$test_bin"; \
+		"./$$$$test_bin"; \
+		done
+
 endef
 
 $(foreach lib,$(LIBRARIES),$(eval $(call library_rules,$(lib))))
