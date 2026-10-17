@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Unlicense
+
 #include <stringview/stringview.h>
 
 #include <stddef.h>
