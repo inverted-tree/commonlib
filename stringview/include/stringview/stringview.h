@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Unlicense
+
 /**
  * @file stringview.h
  * @brief Non-owning views over contiguous byte sequences.
